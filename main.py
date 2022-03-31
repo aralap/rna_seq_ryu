@@ -1,4 +1,5 @@
 import os, random
+from snippet import get_config_parameter
 from Bio import SeqIO
 
 # DNA codon table 
@@ -14,6 +15,16 @@ def check_mkdir(directory):
         os.system(mkdir)
     return 0
 
+#General QC
+#
+def FASTQC(input_path):    
+    fastqc_path = get_config_parameter('fastqc')
+    output_dir = './QC_Plots' # future support for dynamic assign
+    check_mkdir(output_dir)
+    print(f'Running QC on {input_path}')
+    os.system(f'{fastqc_path} {input_path} -o {output_dir}')
+
+
 # SRA download
 def SRA(input_n):
     sra_fold = '/Users/aaptekmann/sratoolkit.2.10.8-mac64/bin/'
@@ -25,7 +36,7 @@ def SRA(input_n):
         print('Previous FASTQ found, skipping download')
     return 0
 
-def trimo(input_n):
+def TRIMO(input_path):
     # Trimomatic
     #This will perform the following:
     #Remove adapters (ILLUMINACLIP:TruSeq3-PE.fa:2:30:10)
@@ -33,17 +44,29 @@ def trimo(input_n):
     #Remove trailing low quality or N bases (below quality 3) (TRAILING:3)
     #Scan the read with a 4-base wide sliding window, cutting when the average quality per base drops below 15 (SLIDINGWINDOW:4:15)
     #Drop reads below the 36 bases long (MINLEN:36)
-
+    basename = os.path.basename(input_path).split('.')[0]
     trimo  = '/Applications/Trimmomatic-0.39/trimmomatic-0.39.jar'
     adapter = '/Applications/Trimmomatic-0.39/adapters/TruSeq3-SE.fa' 
-    input_f = cwd+'/FASTQS/'+input_n+'.fastq'
-
-    if not os.path.isfile(cwd+'/TRIMMED_FASTQS/'+input_n+'.fq'):
+    output_dir = './TRIMMED_FASTQS' # future support for dynamic assign
+    check_mkdir(output_dir)
+    if not os.path.isfile(cwd+'/TRIMMED_FASTQS/'+basename+'.fq'):
         print('Trimmomatic')
-        os.system( 'java -jar '+ trimo + ' SE -phred33 '+input_f+' '+ cwd+'/TRIMMED_FASTQS/'+input_n+'.fq'+' ILLUMINACLIP:'+adapter+':2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36')
+        os.system( 'java -jar '+ trimo + ' SE -phred33 '+input_path+' '+ cwd+'/TRIMMED_FASTQS/'+basename+'.fq'+' ILLUMINACLIP:'+adapter+':2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36')
     else:
         print('Previous TRIMMED_FASTQ found, skipping trimming')
     return 0
+
+def HISAT(input_path,reference):
+        basename = os.path.basename(input_path).split('.')[0]
+        print('Previous TRIMMED_FASTQ found, running hisat2')
+        hisat_path = get_config_parameter('hisat')
+        output_dir = './ALIGNED_READS' # future support for dynamic assign
+        check_mkdir(output_dir)
+        print(f'Running Hisat on {input_path}')
+        print(f'{hisat_path} -p 8 --dta -x {reference} -U {input_path} -S {output_dir}/{basename}.sam')
+#        os.system(f'{hisat_path} -p 8 --dta -x {reference} -U {input_path} -S {output_dir}/{basename}.sam')
+        return 0
+
 
 def SPAdes(input_n):   
     # metaSPAdes {Nurk, 2017 #74} with variable kmer sizes (-k 21,33,55,77,99,127).
@@ -118,16 +141,21 @@ def translate_six_frame(input_n):
 
 if __name__ == "__main__":
     # just sample list, get() method TBD
-    input_list = ['SRR12347146','SRR12347145','SRR12347144','SRR12347143','SRR12347142','SRR12347141','SRR12347140']
+    input_list = ['/Users/aaptekmann/Desktop/CDI/Erika_Schor/NC1-2_R2_001.fastq.gz']
     cwd = os.getcwd()
 
 
     i = 0 
-    for input_n in input_list:
+    for input_path in input_list:
         i+=1 
-        print('\nProcesing:',input_n, '\tSample', i, 'of', len(input_list))
-        SRA(input_n)
-        trimo(input_n)
-        SPAdes(input_n)
-        prokka(input_n)
-        translate_six_frame(input_n)
+        print('\nProcesing:',input_path, '\tSample', i, 'of', len(input_list))
+        #FASTQC(input_path)
+        #TRIMO(input_path)
+        reference = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/hg38_tran/genome_tran.1.ht2'
+        HISAT(input_path, reference)
+        # Get ref from https://genome-idx.s3.amazonaws.com/hisat/grch38_tran.tar.gz
+    
+        # SRA(input_n)
+        # SPAdes(input_n)
+        # prokka(input_n)
+        # translate_six_frame(input_n)
