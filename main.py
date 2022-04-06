@@ -1,6 +1,7 @@
 import os, random
 from snippet import get_config_parameter
 from Bio import SeqIO
+import pandas as pd
 
 # DNA codon table 
 bases = ['T', 'C', 'A', 'G']
@@ -64,7 +65,7 @@ def HISAT(input_path,reference):
         check_mkdir(output_dir)
         print(f'Running Hisat on {input_path}')
         print(f'{hisat_path} -p 8 --dta -x {reference} -U {input_path} -S {output_dir}/{basename}.sam')
-#        os.system(f'{hisat_path} -p 8 --dta -x {reference} -U {input_path} -S {output_dir}/{basename}.sam')
+        os.system(f'{hisat_path} -p 8 --dta -x {reference} -U {input_path} -S {output_dir}/{basename}.sam')
         return 0
 
 
@@ -139,9 +140,64 @@ def translate_six_frame(input_n):
         SeqIO.write(translated_records, cwd+'/TRANS_READS/'+input_n+'.fasta', "fasta")
     return 0
 
+def STAR_INDEX():
+    star = get_config_parameter('star')
+    # Folder to save index
+    d = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/SC'
+    # Single file genome fasta (i.e. from ensemble refs)
+    f = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/Glabrata/Candida_glabrata.GCA000002545v2.dna.toplevel.fa'
+    # Gene annotations (could do without, but much much slower and worst quality result)
+    gtf = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/Glabrata/Candida_glabrata.GCA000002545v2.52.gtf'
+    l = f'{star} --runThreadN 16 --runMode genomeGenerate --genomeDir {d} --genomeFastaFiles {f} --sjdbGTFfile {gtf} --sjdbOverhang 149'
+    os.system(l)
+
+def STAR_ALIGN(gz_file):
+    # Index folder (previously generated)
+    d = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/SC'
+    gz = gz_file#'/Users/aaptekmann/Desktop/CDI/Erika_Schor/NC2-1_R1_001.fastq.gz'
+    o = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts/'
+    # for some reason in mac, uncompress works funky, so, uncompress before run
+    basename = os.path.basename(gz).split('.')[0]
+    check_mkdir(f'{o}/{basename}')
+    os.system(f'gunzip -k {gz}')
+    fq = gz[:-3]
+    #l = f'STAR --runThreadN 16 --genomeDir {d} --readFilesIn {fq} --outFileNamePrefix {o}/{basename}/ '
+    l = f'STAR --runThreadN 16 --outSAMtype BAM Unsorted SortedByCoordinate --quantMode GeneCounts --genomeDir {d} --readFilesIn {fq} --outFileNamePrefix {o}/{basename}/ '
+
+    print(l)
+    os.system(l)
+    os.system(f'rm {fq}')
+
+def SAMTOOLS(bname,o):
+    l = f'samtools sort -o {o}/{bname}/sorted.bam {o}/{bname}/Aligned.out.sam'
+    os.system(l)
+
+def stringtie(bname,gtf,o):
+    stringtie = get_config_parameter('stringtie')
+    l = f'{stringtie} -o {o}/{bname}/counted.gtf -G {gtf} {o}/{bname}/sorted.bam'
+    os.system(l)
+
+def create_count_matrix(): 
+    import code
+    directory = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts/'
+    mtrx=0
+    for filename in os.listdir(directory):
+        pat = os.path.join(directory, filename)
+        if os.path.exists(f'{pat}/ReadsPerGene.out.tab'):
+            df = pd.read_csv(f'{pat}/ReadsPerGene.out.tab',names=["Gene", "CountU", "Count+", "Count-"], sep='\t', header=4)
+            df[filename] = df.max(axis=1)
+            df = df.drop(columns=['CountU', 'Count+', 'Count-'])
+            if type(mtrx) == type(0):
+                mtrx = df
+            else:
+                mtrx = mtrx.set_index('Gene').join(df.set_index('Gene'))    
+            print(f'Yes {filename}')
+    mtrx.to_csv('count_matrix.tsv', sep='\t')        
+    return mtrx
+
 if __name__ == "__main__":
     # just sample list, get() method TBD
-    input_list = ['/Users/aaptekmann/Desktop/CDI/Erika_Schor/NC1-2_R2_001.fastq.gz']
+    input_list = ['/Users/aaptekmann/Desktop/CDI/Erika_Schor/NC2-1_R1_001.fastq.gz']
     cwd = os.getcwd()
 
 
@@ -151,10 +207,20 @@ if __name__ == "__main__":
         print('\nProcesing:',input_path, '\tSample', i, 'of', len(input_list))
         #FASTQC(input_path)
         #TRIMO(input_path)
-        reference = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/hg38_tran/genome_tran.1.ht2'
-        HISAT(input_path, reference)
+        reference = "/Users/aaptekmann/Desktop/CDI/Reference_Genomes/hg38_tran/genome_tran.1.ht2"
+        gtf = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/Glabrata/Candida_glabrata.GCA000002545v2.52.gtf'
+
+        o = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts'
+        bname = os.path.basename(input_path).split('.')[0]
+
+        # HISAT(input_path, reference)
         # Get ref from https://genome-idx.s3.amazonaws.com/hisat/grch38_tran.tar.gz
-    
+        #STAR_INDEX()
+        gz ='/Users/aaptekmann/Desktop/CDI/Erika_Schor/NN1-1_R1_001.fastq.gz'    
+        #STAR_ALIGN(gz)
+        create_count_matrix()
+        #SAMTOOLS(bname,o)
+        #stringtie(bname,gtf,o)
         # SRA(input_n)
         # SPAdes(input_n)
         # prokka(input_n)
