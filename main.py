@@ -159,8 +159,10 @@ def STAR_ALIGN(gz_file, ref_genome, output_folder):
     # for some reason in mac, uncompress works funky, so, uncompress before run
     basename = os.path.basename(gz).split('.')[0]
     if os.path.exists(f'{o}/{basename}/ReadsPerGene.out.tab'):
-        os.system(f'rm {o}/{basename}/Aligned.out.bam')
-        os.system(f'rm {o}/{basename}/Aligned.sortedByCoord.out.bam')
+        if os.path.exists(f'{o}/{basename}/Aligned.out.bam'):
+            os.system(f'rm {o}/{basename}/Aligned.out.bam')
+        if os.path.exists(f'{o}/{basename}/Aligned.sortedByCoord.out.bam'):    
+            os.system(f'rm {o}/{basename}/Aligned.sortedByCoord.out.bam')
         return 0
     check_mkdir(f'{o}/{basename}')
     os.system(f'gunzip -k {gz}')
@@ -170,6 +172,7 @@ def STAR_ALIGN(gz_file, ref_genome, output_folder):
 
     print(l)
     os.system(l)
+    # Add checks for existance...
     os.system(f'rm {o}/{basename}/Aligned.out.bam')
     os.system(f'rm {o}/{basename}/Aligned.sortedByCoord.out.bam')
     os.system(f'rm {fq}')
@@ -190,16 +193,66 @@ def create_count_matrix(counts_dir):
     for filename in os.listdir(directory):
         pat = os.path.join(directory, filename)
         if os.path.exists(f'{pat}/ReadsPerGene.out.tab'):
+            print(f'Reading gene counts for {filename}')
             df = pd.read_csv(f'{pat}/ReadsPerGene.out.tab',names=["Gene", "CountU", "Count+", "Count-"], sep='\t', header=4)
             df[filename] = df.max(axis=1)
             df = df.drop(columns=['CountU', 'Count+', 'Count-'])
             if type(mtrx) == type(0):
                 mtrx = df
+                print('Initialized matrix')
             else:
-                mtrx = mtrx.set_index('Gene').join(df.set_index('Gene'))    
-            print(f'Yes {filename}')
-    mtrx.to_csv(f'{directory}/count_matrix.tsv', sep='\t')        
+                mtrx[filename] = df[filename]   
+    mtrx.to_csv(f'{directory}/count_matrix.tsv', sep='\t',  index=False)        
     return mtrx
+
+def create_exp_design(counts_dir):
+    for line in open(f'{counts_dir}/count_matrix.tsv','r'):
+        names = line
+        break
+    out = open(f'{counts_dir}exp_design.tsv','w')
+    for name in names.split():
+        if 'Gene' in name:
+            out.write(f'run\tcondition\ttype\ttime\n')
+            continue
+        elif 'H' in name:
+            NA1='treatment'
+            NA2="oxidative"
+        elif 'M' in name: 
+            NA1='treatment'
+            NA2="dna_damage"
+        elif 'NN' in name: 
+            NA1='treatment'
+            NA2="N_starvation" 
+        elif 'P3' in name: 
+            NA1='treatment'
+            NA2="acidic"   
+        elif 'Na' in name: 
+            NA1='treatment'
+            NA2="osmotic" 
+        elif 'CR' in name: 
+            NA1='treatment'
+            NA2="congo_red"
+        elif 'NC' in name: 
+            NA1='treatment'
+            NA2="C_starvation" 
+        elif 'CT' in name: 
+            NA1='control'
+            NA2="time_series"
+        elif 'NS' in name: 
+            NA1='control'
+            NA2="no_stress" 
+        else:
+            'ERROR'       
+        if '-4' in name:
+            NA3 = 4
+        elif '-2' in name:
+            NA3 = 2 
+        elif '-1' in name:
+            NA3 = 1    
+        else:
+            'ERROR'                                        
+        out.write(f'{name}\t{NA1}\t{NA2}\t{NA3}\n')
+    out.close()
 
 if __name__ == "__main__":
     # just sample list, get() method TBD
@@ -208,8 +261,8 @@ if __name__ == "__main__":
 
     i = 0 
     for filename in os.listdir(directory):
-        print('\nProcesing:',filename)
         if filename.endswith('gz'):
+            print('\nProcesing:',filename)
             i+=1 
             #FASTQC(input_path)
             #TRIMO(input_path)
@@ -224,7 +277,7 @@ if __name__ == "__main__":
             #STAR_INDEX()
             ref_genome = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/SC'
             gz_file = f'{directory}/{filename}'
-            output_folder = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts/'
+            output_folder = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts'
             STAR_ALIGN(gz_file,ref_genome,output_folder)
         #SAMTOOLS(bname,o)
         #stringtie(bname,gtf,o)
@@ -234,4 +287,4 @@ if __name__ == "__main__":
         # translate_six_frame(input_n)
     counts_dir = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts/'
     create_count_matrix(counts_dir)
-    
+    create_exp_design(counts_dir)
