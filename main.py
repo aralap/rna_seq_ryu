@@ -143,12 +143,12 @@ def translate_six_frame(input_n):
 def STAR_INDEX():
     star = get_config_parameter('star')
     # Folder to save index
-    d = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/SC'
+    d = get_config_parameter('ref_genome_folder')
     # Single file genome fasta (i.e. from ensemble refs)
-    f = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/Glabrata/Candida_glabrata.GCA000002545v2.dna.toplevel.fa'
+    f = get_config_parameter('genome_fasta')
     # Gene annotations (could do without, but much much slower and worst quality result)
-    gtf = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/Glabrata/Candida_glabrata.GCA000002545v2.52.gtf'
-    l = f'{star} --runThreadN 16 --runMode genomeGenerate --genomeDir {d} --genomeFastaFiles {f} --sjdbGTFfile {gtf} --sjdbOverhang 149'
+    gtf = get_config_parameter('genome_gtf')
+    l = f'{star} --runThreadN 16 --runMode genomeGenerate --genomeDir {d} --genomeFastaFiles {f} --sjdbGTFfile {gtf} --sjdbOverhang 149 '
     os.system(l)
 
 def STAR_ALIGN(gz_file, ref_genome, output_folder):
@@ -255,36 +255,32 @@ def create_exp_design(counts_dir):
     out.close()
 
 if __name__ == "__main__":
-    # just sample list, get() method TBD
-    cwd = os.getcwd()
-    directory = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/RNA_SEQ_DATA'
+    STAR_INDEX()
+    # # just sample list, get() method TBD
+    # cwd = os.getcwd()
+    # directory = get_config_parameter('data_dir')
+    # reference = get_config_parameter('genome_fasta')
+    # ref_genome_folder = get_config_parameter('ref_genome_folder')
 
-    i = 0 
-    for filename in os.listdir(directory):
-        if filename.endswith('gz'):
-            print('\nProcesing:',filename)
-            i+=1 
-            #FASTQC(input_path)
-            #TRIMO(input_path)
-            reference = "/Users/aaptekmann/Desktop/CDI/Reference_Genomes/hg38_tran/genome_tran.1.ht2"
-            gtf = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/Glabrata/Candida_glabrata.GCA000002545v2.52.gtf'
+    # i = 0 
+    # for filename in os.listdir(directory):
+    #     if filename.endswith('gz'):
+    #         print('\nProcesing:',filename)
+    #         i+=1 
+    #         #FASTQC(input_path)
+    #         #TRIMO(input_path)
 
-            o = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts'
-            bname = os.path.basename(filename).split('.')[0]
+    #         o = get_config_parameter('out_dir')
+    #         bname = os.path.basename(filename).split('.')[0]
 
-            # HISAT(input_path, reference)
-            # Get ref from https://genome-idx.s3.amazonaws.com/hisat/grch38_tran.tar.gz
-            #STAR_INDEX()
-            ref_genome = '/Users/aaptekmann/Desktop/CDI/Reference_Genomes/SC'
-            gz_file = f'{directory}/{filename}'
-            output_folder = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts'
-            STAR_ALIGN(gz_file,ref_genome,output_folder)
-        #SAMTOOLS(bname,o)
-        #stringtie(bname,gtf,o)
-        # SRA(input_n)
-        # SPAdes(input_n)
-        # prokka(input_n)
-        # translate_six_frame(input_n)
-    counts_dir = '/Users/aaptekmann/Desktop/CDI/Erika_Schor/Counts/'
-    create_count_matrix(counts_dir)
-    create_exp_design(counts_dir)
+    #         # HISAT(input_path, reference)
+    #         gz_file = f'{directory}/{filename}'
+    #         STAR_ALIGN(gz_file,ref_genome_folder,o)
+    #     #SAMTOOLS(bname,o)
+    #     #stringtie(bname,gtf,o)
+    #     # SRA(input_n)
+    #     # SPAdes(input_n)
+    #     # prokka(input_n)
+    #     # translate_six_frame(input_n)
+    # create_count_matrix(o)
+    # create_exp_design(o)
